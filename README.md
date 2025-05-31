@@ -1,14 +1,14 @@
-# MCP Server HTTP Time
+# MCP Time Server - Streamable HTTP
 
-⚠️ **TESTING/EXAMPLE SERVER ONLY** ⚠️
+⚠️ **This Server is for Demo and Testing Purposes** ⚠️
 
-This is a **bare bones example server** designed for testing MCP HTTP protocol functionality. It is **NOT intended for production use** and lacks proper authentication, rate limiting, and security measures.
+This is a **bare bones example server** designed for testing MCP Streamable HTTP protocol functionality. It is **NOT intended for production use** and lacks proper authentication and security measures.
 
 ---
 
-A Model Context Protocol (MCP) server providing time-related tools, implemented as a Cloudflare Worker using a standard HTTP interface.
+A Model Context Protocol (MCP) server providing time-related tools, implemented as a Cloudflare Worker.
 
-This server allows MCP clients (like AI assistants) to access various time functions.
+This server allows LLMs to access various date/time functions.
 
 ## Features
 
@@ -31,6 +31,14 @@ mcp-server-http-time/
 ├── tsconfig.json     # TypeScript configuration
 └── wrangler.toml     # Cloudflare Worker configuration
 ```
+
+## Getting Started
+
+1.  **Clone the Repository:**
+    ```bash
+    git clone https://github.com/Cam10001110101/mcp-server-http-time.git
+    cd mcp-server-http-time
+    ```
 
 ## Development
 
@@ -62,115 +70,82 @@ npx wrangler deploy
 ```
 (Ensure you are logged into Cloudflare via `wrangler login` first and have configured your `wrangler.toml` appropriately).
 
-## Using with MCP Clients (Example: Claude Desktop)
+## Connectors for Streamable HTTP Servers
+
+**NEW**: Major providers have adopted the Model Context Protocol and now support Streamable HTTP servers directly. Anthropic, OpenAI, and Microsoft have all adopted this modern transport protocol.
+
+> **📋 Protocol Note**: Streamable HTTP is the modern replacement for the deprecated HTTP+SSE transport.
+
+#### Anthropic MCP Connector
+
+Anthropic's [MCP Connector](https://docs.anthropic.com/en/docs/agents-and-tools/mcp-connector) allows you to use Streamable HTTP servers directly through the Messages API without needing a separate MCP client.
+
+The MCP Connector is perfect for this server since it uses the Streamable HTTP architecture. Simply include the server in your API requests:
+
+```bash
+curl https://api.anthropic.com/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "anthropic-beta: mcp-client-2025-04-04" \
+  -d '{
+    "model": "claude-sonnet-4-20250514",
+    "max_tokens": 1000,
+    "messages": [{
+      "role": "user", 
+      "content": "What time is it in Tokyo?"
+    }],
+    "mcp_servers": [{
+      "type": "url",
+      "url": "https://your.worker.url.workers.dev",
+      "name": "http-time-server"
+    }]
+  }'
+```
+
+#### Anthropic MCP Connector Benefits:
+- **No client setup required** - Connect directly through the API
+- **Native Streamable HTTP support** - Designed for servers like this one
+
+#### OpenAI Agents SDK
+
+OpenAI also supports Streamable HTTP servers through their [Agents SDK](https://openai.github.io/openai-agents-python/ref/mcp/server/#agents.mcp.server.MCPServerStreamableHttp) using the `MCPServerStreamableHttp` class:
+
+```python
+from agents.mcp.server import MCPServerStreamableHttp
+
+# Connect to this Streamable HTTP server
+server = MCPServerStreamableHttp({
+    "url": "https://your.worker.url.workers.dev",
+    "headers": {"Authorization": "Bearer your-token"},  # if needed
+})
+
+# Use the server in your OpenAI agent
+await server.connect()
+tools = await server.list_tools()
+result = await server.call_tool("current_time", {"timezone": "Asia/Tokyo"})
+```
+
+#### Microsoft Copilot Studio
+
+Microsoft Copilot Studio now supports Streamable HTTP servers with [MCP integration generally available](https://www.microsoft.com/en-us/microsoft-copilot/blog/copilot-studio/model-context-protocol-mcp-is-now-generally-available-in-microsoft-copilot-studio/). You can connect this server to Copilot Studio by:
+
+1. **Building a custom connector** that links your MCP server to Copilot Studio
+2. **Adding the tool in Copilot Studio** by selecting 'Add a Tool' and searching for your MCP server
+3. **Using the server directly** in your agents with generative orchestration enabled
+
+#### More MCP Clients Coming Soon
+
+Keep an eye out as more MCP clients adopt support for Streamable HTTP. Here are a few resources that maintain lists of MCP clients and their capabilities:
+
+- [PulseMCP Client Directory](https://www.pulsemcp.com/clients) - Comprehensive list of MCP clients
+- [Official MCP Servers Repository](https://github.com/modelcontextprotocol/servers) - Official collection including client information
+- [MCP.so Client Listings](https://mcp.so/?tab=clients) - Community-maintained client directory
 
 ---
-
-⚠️ **Compatibility Note**
-
-- Only a limited number of MCP clients currently support the Streamable HTTP protocol required by this server.
-- The recommended way to connect is using the [mcp-remote](https://github.com/modelcontextprotocol/mcp-remote) tool as a bridge.
-- The following configuration is **confirmed to work in VSCode** (and other clients that support mcp-remote):
-  ```json
-  "mcp-time-http-deployed": {
-      "command": "npx",
-      "args": [
-          "mcp-remote",
-          "https://mcp-server-http-time.cbrohn.workers.dev"
-      ]
-  }
-  ```
-- You do **not** need to use a `/sse` endpoint; the base URL is sufficient for mcp-remote and compatible clients.
-- If your client does not support Streamable HTTP or mcp-remote, it may not be able to connect to this server.
-
----
-
-To connect this server to an MCP client like Claude Desktop, you'll need to add its configuration.
-
-### Local Development Example
-
-Add this configuration to your Claude Desktop config file:
-
-**MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "mcp-time-http-local": {
-      "url": "http://localhost:8787" // Default wrangler dev URL
-    }
-    // ... other servers
-  }
-}
-```
-*(Restart Claude Desktop after adding the configuration)*
-
-### Deployed Example
-
-Once deployed, Cloudflare will provide a URL for your worker (e.g., `https://my-time-worker.<your-subdomain>.workers.dev`). For best compatibility with MCP clients, especially those requiring Streamable HTTP, use the following configuration (confirmed to work in VSCode):
-
-```json
-{
-  "mcpServers": {
-    "mcp-time-http-deployed": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://mcp-server-http-time.cbrohn.workers.dev"
-      ]
-    }
-    // ... other servers
-  }
-}
-```
-
-*(Replace the URL with your actual deployed worker URL if different.)*
-
-#### Direct URL (for clients that support it)
-
-Some clients may support a direct URL field:
-
-```json
-{
-  "mcpServers": {
-    "mcp-time-http-deployed": {
-      "url": "https://mcp-server-http-time.cbrohn.workers.dev"
-    }
-    // ... other servers
-  }
-}
-```
-
-However, the mcp-remote configuration above is recommended for full protocol compatibility and is required for Streamable HTTP support.
 
 ## Authentication & Security Considerations
 
 ⚠️ **IMPORTANT: This example server has NO authentication or security measures implemented.**
 
-For production MCP servers, you should implement proper authentication as outlined in the [official MCP documentation](https://modelcontextprotocol.io/docs):
-
-### Recommended Security Measures for Production:
-
-1. **API Key Authentication**: Implement API key validation for all requests
-2. **Rate Limiting**: Add request rate limiting to prevent abuse
-3. **CORS Configuration**: Restrict allowed origins appropriately
-4. **Input Validation**: Validate and sanitize all user inputs
-5. **Logging & Monitoring**: Implement comprehensive request logging
-6. **Error Handling**: Avoid exposing internal error details
-
-### MCP Connector Authentication:
-
-When using MCP Connector for production deployments, refer to the [MCP Connector Authentication Guide](https://modelcontextprotocol.io/docs/tools/mcp-connector#authentication) for:
-
-- Setting up secure authentication flows
-- Managing API credentials
-- Implementing proper access controls
-- Handling authentication errors gracefully
-
-**This example server should only be used for:**
-- Testing MCP protocol functionality
-- Development and debugging
-- Learning MCP implementation patterns
-
-**Do NOT use this server in production environments without implementing proper security measures.**
+For production MCP servers, you should implement proper authentication as outlined in the [official MCP documentation](https://modelcontextprotocol.io/introduction#authentication)

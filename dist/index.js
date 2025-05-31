@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime.js';
 import utc from 'dayjs/plugin/utc.js';
@@ -12,6 +13,9 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
+// Simple rate limiting by IP
+const RATE_LIMIT = 60; // requests per minute
+const rateLimitMap = new Map();
 // Create MCP server instance
 const server = new McpServer({
     name: 'mcp-server-http-time',
@@ -27,7 +31,7 @@ server.tool('current_time', {
 }, async ({ format = 'YYYY-MM-DD HH:mm:ss', timezone }) => {
     const utcTime = dayjs.utc();
     const localTimezone = timezone ?? dayjs.tz.guess();
-    const localTime = dayjs().tz(localTimezone);
+    const localTime = utcTime.tz(localTimezone);
     return {
         content: [
             {
@@ -84,14 +88,16 @@ server.tool('convert_time', {
     targetTimezone: z.string().describe('The target timezone. IANA timezone name, e.g. Europe/London'),
     time: z.string().describe('Date and time in 24-hour format. e.g. 2025-03-23 12:30:00'),
 }, async ({ sourceTimezone, targetTimezone, time }) => {
-    const sourceTime = dayjs(time).tz(sourceTimezone);
+    const sourceTime = dayjs.tz(time, sourceTimezone);
     const targetTime = sourceTime.tz(targetTimezone);
     const formatString = 'YYYY-MM-DD HH:mm:ss';
+    const timeDiff = targetTime.utcOffset() - sourceTime.utcOffset();
+    const hoursDiff = Math.round(timeDiff / 60);
     return {
         content: [
             {
                 type: 'text',
-                text: `Time ${time} in ${sourceTimezone} is ${sourceTime.format(formatString)}, which is ${targetTime.format(formatString)} in ${targetTimezone}. The time difference is ${dayjs(targetTime).diff(dayjs(sourceTime), 'hours')} hours.`,
+                text: `Time ${time} in ${sourceTimezone} converts to ${targetTime.format(formatString)} in ${targetTimezone}. ${targetTimezone} is ${hoursDiff} hours ${hoursDiff > 0 ? 'ahead of' : hoursDiff < 0 ? 'behind' : 'same as'} ${sourceTimezone}.`,
             },
         ],
     };
@@ -111,6 +117,22 @@ server.tool('get_week_year', {
         ],
     };
 });
+// Rate limiting helper function
+function checkRateLimit(ip) {
+    const now = Date.now();
+    const windowStart = Math.floor(now / 60000) * 60000; // Start of current minute
+    const existing = rateLimitMap.get(ip);
+    if (!existing || existing.resetTime < windowStart) {
+        // New window or expired window
+        rateLimitMap.set(ip, { count: 1, resetTime: windowStart + 60000 });
+        return true;
+    }
+    if (existing.count >= RATE_LIMIT) {
+        return false; // Rate limit exceeded
+    }
+    existing.count++;
+    return true;
+}
 // --- Manual Cloudflare Worker Fetch Handler for MCP Protocol ---
 export default {
     async fetch(request, env, ctx) {
@@ -139,28 +161,56 @@ export default {
                 headers: { 'Allow': 'POST, OPTIONS, GET' },
             });
         }
+        // Get client IP address and check rate limit
+        const clientIP = request.headers.get('CF-Connecting-IP') ||
+            request.headers.get('X-Forwarded-For') ||
+            request.headers.get('X-Real-IP') ||
+            'unknown';
+        if (!checkRateLimit(clientIP)) {
+            return new Response('Too Many Requests - Rate limit exceeded (60 requests per minute)', {
+                status: 429,
+                headers: {
+                    'Content-Type': 'text/plain',
+                    'Access-Control-Allow-Origin': '*',
+                    'Retry-After': '60'
+                }
+            });
+        }
         let requestId = null;
         try {
             const requestBody = await request.json();
             const { method, params, id } = requestBody;
             requestId = id;
             switch (method) {
-                case 'initialize':
+                case 'initialize': {
+                    // Build capabilities.tools from registered tools
+                    const registeredTools = server._registeredTools;
+                    const tools = {};
+                    for (const [name, toolDef] of Object.entries(registeredTools)) {
+                        const def = toolDef;
+                        tools[name] = {
+                            description: def.description,
+                            inputSchema: zodToJsonSchema(def.inputSchema).definitions?.root ?? zodToJsonSchema(def.inputSchema),
+                        };
+                    }
                     return jsonRpcResponse(id, {
                         serverInfo: {
                             name: 'mcp-server-http-time',
                             version: '0.2.0',
                         },
                         protocolVersion: '2025-03-26',
-                        capabilities: {},
+                        capabilities: {
+                            tools,
+                        },
                     });
+                }
                 case 'tools/list':
                     // List all registered tools
                     const registeredTools = server._registeredTools;
                     const toolsList = Object.entries(registeredTools).map(([name, toolDef]) => ({
                         name: name, // Use the key from Object.entries as the tool name
                         description: toolDef.description,
-                        inputSchema: toolDef.inputSchema,
+                        inputSchema: zodToJsonSchema(toolDef.inputSchema).definitions?.root ?? zodToJsonSchema(toolDef.inputSchema),
                     }));
                     return jsonRpcResponse(id, { tools: toolsList });
                 case 'tools/call':

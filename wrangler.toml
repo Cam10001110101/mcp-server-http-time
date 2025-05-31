@@ -1,6 +1,6 @@
 name = "mcp-server-http-time"
 main = "src/index.ts"
-compatibility_date = "2025-04-02"
+compatibility_date = "2025-03-21"
 compatibility_flags = [ "nodejs_compat" ]
 
 [observability]
