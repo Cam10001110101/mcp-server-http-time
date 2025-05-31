@@ -15,6 +15,10 @@ dayjs.extend(timezone);
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
 
+// Simple rate limiting by IP
+const RATE_LIMIT = 60; // requests per minute
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
 // Define the Worker interface (optional but good practice)
 export interface Env {
   // Environment variables can be configured in wrangler.toml or via the Cloudflare dashboard
@@ -153,6 +157,26 @@ server.tool(
   }
 );
 
+// Rate limiting helper function
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const windowStart = Math.floor(now / 60000) * 60000; // Start of current minute
+  
+  const existing = rateLimitMap.get(ip);
+  if (!existing || existing.resetTime < windowStart) {
+    // New window or expired window
+    rateLimitMap.set(ip, { count: 1, resetTime: windowStart + 60000 });
+    return true;
+  }
+  
+  if (existing.count >= RATE_LIMIT) {
+    return false; // Rate limit exceeded
+  }
+  
+  existing.count++;
+  return true;
+}
+
 // --- Manual Cloudflare Worker Fetch Handler for MCP Protocol ---
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -181,6 +205,23 @@ export default {
       return new Response('Method Not Allowed', {
         status: 405,
         headers: { 'Allow': 'POST, OPTIONS, GET' },
+      });
+    }
+
+    // Get client IP address and check rate limit
+    const clientIP = request.headers.get('CF-Connecting-IP') || 
+                    request.headers.get('X-Forwarded-For') || 
+                    request.headers.get('X-Real-IP') || 
+                    'unknown';
+    
+    if (!checkRateLimit(clientIP)) {
+      return new Response('Too Many Requests - Rate limit exceeded (60 requests per minute)', {
+        status: 429,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Access-Control-Allow-Origin': '*',
+          'Retry-After': '60'
+        }
       });
     }
 
