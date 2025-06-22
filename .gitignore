@@ -153,5 +153,8 @@ secrets.json
 docs/build/
 docs/.vuepress/dist/
 
+# Protocol specifications
+specification/
+
 # Monitoring and analytics
 .lighthouseci/
