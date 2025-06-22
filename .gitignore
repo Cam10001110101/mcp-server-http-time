@@ -34,6 +34,7 @@ out/
 worker/
 *.worker.js
 .dev.vars
+wrangler.toml
 wrangler.toml.bak
 
 # Environment variables

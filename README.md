@@ -63,12 +63,28 @@ mcp-server-http-time/
 
 ## Deployment
 
+### Configuration
+
+Before deploying, you need to configure your Cloudflare Worker:
+
+1. Copy the example configuration file:
+   ```bash
+   cp wrangler.toml.example wrangler.toml
+   ```
+
+2. Edit `wrangler.toml` to configure your domain (optional):
+   - Uncomment and modify the `[[routes]]` section if you want to use a custom domain
+   - Replace `your-subdomain.your-domain.com` with your actual domain
+   - Update `zone_name` with your domain
+
+### Deploy
+
 Deploy the worker to Cloudflare:
 
 ```bash
 npx wrangler deploy
 ```
-(Ensure you are logged into Cloudflare via `wrangler login` first and have configured your `wrangler.toml` appropriately).
+(Ensure you are logged into Cloudflare via `wrangler login` first).
 
 ## Connectors for Streamable HTTP Servers
 

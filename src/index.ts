@@ -270,11 +270,17 @@ async function handleMcpRequest(request: any): Promise<any> {
 
 	switch (method) {
 		case 'initialize':
+			// Use the client's requested protocol version if supported, otherwise default to latest
+			const clientProtocolVersion = params?.protocolVersion || '2025-06-18';
+			const responseProtocolVersion = isSupportedProtocolVersion(clientProtocolVersion) 
+				? clientProtocolVersion 
+				: '2024-11-05'; // Fall back to widely supported version
+
 			return {
 				jsonrpc: '2.0',
 				id,
 				result: {
-					protocolVersion: '2025-06-18',
+					protocolVersion: responseProtocolVersion,
 					capabilities: {
 						tools: {}
 					},
