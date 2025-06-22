@@ -158,113 +158,85 @@ Keep an eye out as more MCP clients adopt support for Streamable HTTP. Here are 
 - [Official MCP Servers Repository](https://github.com/modelcontextprotocol/servers) - Official collection including client information
 - [MCP.so Client Listings](https://mcp.so/?tab=clients) - Community-maintained client directory
 
-## Desktop and IDE Client Configurations
+## Testing and Validation with MCP Inspector
 
-### Claude Desktop
+The easiest way to test and validate your MCP server is using the official [MCP Inspector](https://github.com/modelcontextprotocol/inspector) tool. This web-based interface allows you to connect to your server and test all available tools interactively.
 
-To use this server with Claude Desktop, add it to your MCP configuration file:
+### Using MCP Inspector
 
-**macOS/Linux**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+1. **Start your server** (either locally or deploy to Cloudflare):
+   ```bash
+   # Local development
+   npx wrangler dev
+   
+   # Or use your deployed Cloudflare Worker URL
+   # https://your.worker.url.workers.dev
+   ```
 
-```json
-{
-  "mcpServers": {
-    "http-time-server": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-fetch", "https://your.worker.url.workers.dev"],
-      "env": {}
-    }
-  }
-}
-```
+2. **Open the MCP Inspector** in your browser:
+   - Go to: https://github.com/modelcontextprotocol/inspector
+   - Or run locally: `npx @modelcontextprotocol/inspector`
 
-Alternatively, if you prefer to run this server locally during development:
+3. **Configure the connection**:
+   - Select **"Streamable HTTP"** as the transport type
+   - Enter your server URL:
+     - Local: `http://localhost:8787`
+     - Deployed: `https://your.worker.url.workers.dev`
+   - Click **"Connect"**
 
-```json
-{
-  "mcpServers": {
-    "http-time-server": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-fetch", "http://localhost:8787"],
-      "env": {}
-    }
-  }
-}
-```
+4. **Test the tools**:
+   - Navigate to the **"Tools"** tab
+   - Click **"List Tools"** to see all available functions
+   - Select any tool to view its schema and parameters
+   - Test tools by providing parameters and clicking **"Run"**
 
-After updating the configuration, restart Claude Desktop for the changes to take effect.
+### Available Tools to Test
 
-### VSCode MCP Extension
+The inspector will show all six time-related tools:
 
-For VSCode with the MCP extension, add this server to your workspace or user settings:
+- **`current_time`**: Test with different timezones (e.g., "America/New_York", "Europe/London")
+- **`relative_time`**: Test with various time strings (e.g., "2024-12-25T00:00:00Z")
+- **`days_in_month`**: Test with different months and years
+- **`get_timestamp`**: Convert date-time strings to Unix timestamps
+- **`convert_time`**: Convert between different timezones
+- **`get_week_year`**: Get week numbers for specific dates
 
-1. **Install the MCP extension** from the VSCode marketplace
-2. **Configure the server** in your VSCode settings (`settings.json`):
+### Example Test Cases
 
-```json
-{
-  "mcp.servers": {
-    "http-time-server": {
-      "type": "http",
-      "url": "https://your.worker.url.workers.dev",
-      "name": "Time Server",
-      "description": "Provides time-related tools and utilities"
-    }
-  }
-}
-```
-
-For local development:
+Try these test cases in the inspector:
 
 ```json
-{
-  "mcp.servers": {
-    "http-time-server": {
-      "type": "http", 
-      "url": "http://localhost:8787",
-      "name": "Time Server (Local)",
-      "description": "Local development instance of time server"
-    }
-  }
-}
+// current_time
+{"timezone": "Asia/Tokyo", "format": "iso"}
+
+// relative_time  
+{"time": "2024-12-25T00:00:00Z"}
+
+// days_in_month
+{"month": 2, "year": 2024}
+
+// get_timestamp
+{"time": "2024-06-15T12:00:00Z"}
+
+// convert_time
+{"time": "2024-06-15T12:00:00", "from": "UTC", "to": "America/Los_Angeles"}
+
+// get_week_year
+{"date": "2024-06-15"}
 ```
 
-### GitHub Copilot Studio
+### Validation Checklist
 
-To integrate this server with GitHub Copilot Studio:
+Use the inspector to verify:
 
-1. **Navigate to your Copilot Studio workspace**
-2. **Add a new MCP server connection**:
-   - Go to Settings → Integrations → MCP Servers
-   - Click "Add Server"
-   - Configure as follows:
+- ✅ Server connects successfully
+- ✅ All 6 tools are listed
+- ✅ Tool schemas are properly defined
+- ✅ Tools execute without errors
+- ✅ Results are formatted correctly
+- ✅ Error handling works for invalid inputs
 
-```yaml
-name: http-time-server
-type: streamable-http
-url: https://your.worker.url.workers.dev
-description: Time and date utilities server
-capabilities:
-  - tools
-tools:
-  - current_time
-  - relative_time
-  - days_in_month
-  - get_timestamp
-  - convert_time
-  - get_week_year
-```
-
-3. **Enable the integration** in your agent configurations
-4. **Test the connection** using the built-in testing tools
-
-### Configuration Notes
-
-- **Replace `your.worker.url.workers.dev`** with your actual Cloudflare Worker URL after deployment
-- **For local development**, use `http://localhost:8787` (or the port shown when running `npx wrangler dev`)
-- **Restart your client application** after making configuration changes
-- **Check client logs** if the server doesn't appear or tools aren't available
+The MCP Inspector provides the most comprehensive way to test your server before integrating it with AI clients.
 
 ---
 
