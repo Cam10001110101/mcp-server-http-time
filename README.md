@@ -158,6 +158,114 @@ Keep an eye out as more MCP clients adopt support for Streamable HTTP. Here are 
 - [Official MCP Servers Repository](https://github.com/modelcontextprotocol/servers) - Official collection including client information
 - [MCP.so Client Listings](https://mcp.so/?tab=clients) - Community-maintained client directory
 
+## Desktop and IDE Client Configurations
+
+### Claude Desktop
+
+To use this server with Claude Desktop, add it to your MCP configuration file:
+
+**macOS/Linux**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "http-time-server": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch", "https://your.worker.url.workers.dev"],
+      "env": {}
+    }
+  }
+}
+```
+
+Alternatively, if you prefer to run this server locally during development:
+
+```json
+{
+  "mcpServers": {
+    "http-time-server": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch", "http://localhost:8787"],
+      "env": {}
+    }
+  }
+}
+```
+
+After updating the configuration, restart Claude Desktop for the changes to take effect.
+
+### VSCode MCP Extension
+
+For VSCode with the MCP extension, add this server to your workspace or user settings:
+
+1. **Install the MCP extension** from the VSCode marketplace
+2. **Configure the server** in your VSCode settings (`settings.json`):
+
+```json
+{
+  "mcp.servers": {
+    "http-time-server": {
+      "type": "http",
+      "url": "https://your.worker.url.workers.dev",
+      "name": "Time Server",
+      "description": "Provides time-related tools and utilities"
+    }
+  }
+}
+```
+
+For local development:
+
+```json
+{
+  "mcp.servers": {
+    "http-time-server": {
+      "type": "http", 
+      "url": "http://localhost:8787",
+      "name": "Time Server (Local)",
+      "description": "Local development instance of time server"
+    }
+  }
+}
+```
+
+### GitHub Copilot Studio
+
+To integrate this server with GitHub Copilot Studio:
+
+1. **Navigate to your Copilot Studio workspace**
+2. **Add a new MCP server connection**:
+   - Go to Settings → Integrations → MCP Servers
+   - Click "Add Server"
+   - Configure as follows:
+
+```yaml
+name: http-time-server
+type: streamable-http
+url: https://your.worker.url.workers.dev
+description: Time and date utilities server
+capabilities:
+  - tools
+tools:
+  - current_time
+  - relative_time
+  - days_in_month
+  - get_timestamp
+  - convert_time
+  - get_week_year
+```
+
+3. **Enable the integration** in your agent configurations
+4. **Test the connection** using the built-in testing tools
+
+### Configuration Notes
+
+- **Replace `your.worker.url.workers.dev`** with your actual Cloudflare Worker URL after deployment
+- **For local development**, use `http://localhost:8787` (or the port shown when running `npx wrangler dev`)
+- **Restart your client application** after making configuration changes
+- **Check client logs** if the server doesn't appear or tools aren't available
+
 ---
 
 ## Authentication & Security Considerations
