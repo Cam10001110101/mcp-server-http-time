@@ -1,8 +1,20 @@
+# ===================================
+# MCP Server HTTP Time - .gitignore
+# ===================================
+
 # Dependencies
 node_modules/
+node/
+node
+node_*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+
+# Package manager lock files (keep package-lock.json)
+# yarn.lock
+# pnpm-lock.yaml
 
 # Build outputs
 dist/
@@ -10,11 +22,20 @@ build/
 out/
 *.js
 *.js.map
+*.d.ts
+!src/**/*.d.ts
+
+# TypeScript
+*.tsbuildinfo
+.tscache/
 
 # Cloudflare Workers
 .wrangler/
 worker/
 *.worker.js
+.dev.vars
+wrangler.toml
+wrangler.toml.bak
 
 # Environment variables
 .env
@@ -22,83 +43,83 @@ worker/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+# MCP Development
+.mcp/
+mcp-server.log
+*.mcp.log
 
-# Coverage directory used by tools like istanbul
+# Testing
 coverage/
 *.lcov
-
-# nyc test coverage
 .nyc_output
+test-results/
+playwright-report/
 
 # Logs
-logs
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Runtime data
-pids
+pids/
 *.pid
 *.seed
 *.pid.lock
 
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
+# Dependency directories and caches
+.npm/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
 .eslintcache
 
-# Microbundle cache
+# Build tool caches
+.cache/
+.parcel-cache/
 .rpt2_cache/
 .rts2_cache_cjs/
 .rts2_cache_es/
 .rts2_cache_umd/
+.rollup.cache/
 
 # Optional REPL history
 .node_repl_history
 
-# Output of 'npm pack'
+# Package archives
 *.tgz
+*.tar.gz
 
 # Yarn Integrity file
 .yarn-integrity
 
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
-
-# Next.js build output
-.next
-
-# Nuxt.js build / generate output
-.nuxt
-dist
-
-# Vuepress build output
-.vuepress/dist
-
-# Serverless directories
+# Framework specific
+.next/
+.nuxt/
+.vuepress/dist/
 .serverless/
-
-# FuseBox cache
 .fusebox/
 
-# DynamoDB Local files
+# Database
 .dynamodb/
+*.db
+*.sqlite
+*.sqlite3
 
-# TernJS port file
-.tern-port
-
-# IDE files
+# IDE and Editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
 
 # OS generated files
 .DS_Store
@@ -108,7 +129,29 @@ dist
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
 # Temporary files
 *.tmp
 *.temp
+.tmpenvs
+.temp/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Security
+*.key
+*.pem
+*.p12
+*.pfx
+secrets.json
+
+# Documentation build
+docs/build/
+docs/.vuepress/dist/
+
+# Monitoring and analytics
+.lighthouseci/
