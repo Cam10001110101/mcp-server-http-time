@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "types": ["@cloudflare/workers-types"], // Add this line
     "outDir": "./dist",
     "rootDir": "./src",

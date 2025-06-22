@@ -1,6 +1,3 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime.js';
 import utc from 'dayjs/plugin/utc.js';
@@ -15,311 +12,465 @@ dayjs.extend(timezone);
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
 
-// Simple rate limiting by IP
-const RATE_LIMIT = 60; // requests per minute
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-
-// Define the Worker interface (optional but good practice)
 export interface Env {
-  // Environment variables can be configured in wrangler.toml or via the Cloudflare dashboard
+	// Environment variables can be configured in wrangler.toml or via the Cloudflare dashboard
 }
 
-// Create MCP server instance
-const server = new McpServer({
-  name: 'mcp-server-http-time',
-  version: '0.2.0',
-  protocolVersion: '2025-03-26',
-  capabilities: {},
-});
+// Tool definitions
+const tools = [
+	{
+		name: 'current_time',
+		title: 'Get Current Time',
+		description: 'Returns the current time in UTC and a specified or guessed timezone.',
+		inputSchema: {
+			type: "object",
+			properties: {
+				format: {
+					type: "string",
+					description: "The format for the returned time string.",
+					default: "YYYY-MM-DD HH:mm:ss"
+				},
+				timezone: {
+					type: "string",
+					description: "The IANA timezone name (e.g., \"America/New_York\"). Defaults to the server's guessed timezone."
+				}
+			}
+		}
+	},
+	{
+		name: 'relative_time',
+		title: 'Get Relative Time',
+		description: 'Calculates the relative time from now to a given time string.',
+		inputSchema: {
+			type: "object",
+			properties: {
+				time: {
+					type: "string",
+					description: "The time to compare. Format: YYYY-MM-DD HH:mm:ss"
+				}
+			},
+			required: ["time"]
+		}
+	},
+	{
+		name: 'days_in_month',
+		title: 'Get Days in Month',
+		description: 'Returns the number of days in the month of a given date.',
+		inputSchema: {
+			type: "object",
+			properties: {
+				date: {
+					type: "string",
+					description: "The date to check. Format: YYYY-MM-DD"
+				}
+			}
+		}
+	},
+	{
+		name: 'get_timestamp',
+		title: 'Get Timestamp',
+		description: 'Converts a date-time string to a Unix timestamp in milliseconds.',
+		inputSchema: {
+			type: "object",
+			properties: {
+				time: {
+					type: "string",
+					description: "The time to convert. Format: YYYY-MM-DD HH:mm:ss"
+				}
+			}
+		}
+	},
+	{
+		name: 'convert_time',
+		title: 'Convert Timezone',
+		description: 'Converts a time from a source timezone to a target timezone.',
+		inputSchema: {
+			type: "object",
+			properties: {
+				sourceTimezone: {
+					type: "string",
+					description: "The source IANA timezone name (e.g., \"Asia/Shanghai\")."
+				},
+				targetTimezone: {
+					type: "string",
+					description: "The target IANA timezone name (e.g., \"Europe/London\")."
+				},
+				time: {
+					type: "string",
+					description: "The time to convert. e.g., \"2025-03-23 12:30:00\"."
+				}
+			},
+			required: ["sourceTimezone", "targetTimezone", "time"]
+		}
+	},
+	{
+		name: 'get_week_year',
+		title: 'Get Week of Year',
+		description: 'Returns the week and ISO week number for a given date.',
+		inputSchema: {
+			type: "object",
+			properties: {
+				date: {
+					type: "string",
+					description: "The date to check. e.g., \"2025-03-23\""
+				}
+			}
+		}
+	}
+];
 
-// --- Tool Registration ---
-
-// current_time tool
-server.tool(
-  'current_time',
-  {
-    format: z.string().default('YYYY-MM-DD HH:mm:ss').describe('The format of the time, default is empty string').optional(),
-    timezone: z.string().describe('The timezone of the time, IANA timezone name, e.g. Asia/Shanghai').optional(),
-  },
-  async ({ format = 'YYYY-MM-DD HH:mm:ss', timezone }: { format?: string; timezone?: string }) => {
-    const utcTime = dayjs.utc();
-    const localTimezone = timezone ?? dayjs.tz.guess();
-    const localTime = utcTime.tz(localTimezone);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Current UTC time is ${utcTime.format(format)}, and the time in ${localTimezone} is ${localTime.format(format)}.`,
-        },
-      ],
-    };
-  }
-);
-
-// relative_time tool
-server.tool(
-  'relative_time',
-  {
-    time: z.string().describe('The time to get the relative time from now. Format: YYYY-MM-DD HH:mm:ss'),
-  },
-  async ({ time }: { time: string }) => {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: dayjs(time).fromNow(),
-        },
-      ],
-    };
-  }
-);
-
-// days_in_month tool
-server.tool(
-  'days_in_month',
-  {
-    date: z.string().describe('The date to get the days in month. Format: YYYY-MM-DD').optional(),
-  },
-  async ({ date }: { date?: string }) => {
-    const result = date ? dayjs(date).daysInMonth() : dayjs().daysInMonth();
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `The number of days in month is ${result}.`,
-        },
-      ],
-    };
-  }
-);
-
-// get_timestamp tool
-server.tool(
-  'get_timestamp',
-  {
-    time: z.string().describe('The time to get the timestamp. Format: YYYY-MM-DD HH:mm:ss').optional(),
-  },
-  async ({ time }: { time?: string }) => {
-    const result = time ? dayjs(time).valueOf() : dayjs().valueOf();
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `The timestamp of ${time || 'now'} is ${result} ms.`,
-        },
-      ],
-    };
-  }
-);
-
-// convert_time tool
-server.tool(
-  'convert_time',
-  {
-    sourceTimezone: z.string().describe('The source timezone. IANA timezone name, e.g. Asia/Shanghai'),
-    targetTimezone: z.string().describe('The target timezone. IANA timezone name, e.g. Europe/London'),
-    time: z.string().describe('Date and time in 24-hour format. e.g. 2025-03-23 12:30:00'),
-  },
-  async ({ sourceTimezone, targetTimezone, time }: { sourceTimezone: string; targetTimezone: string; time: string }) => {
-    const sourceTime = dayjs.tz(time, sourceTimezone);
-    const targetTime = sourceTime.tz(targetTimezone);
-    const formatString = 'YYYY-MM-DD HH:mm:ss';
-    const timeDiff = targetTime.utcOffset() - sourceTime.utcOffset();
-    const hoursDiff = Math.round(timeDiff / 60);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Time ${time} in ${sourceTimezone} converts to ${targetTime.format(formatString)} in ${targetTimezone}. ${targetTimezone} is ${hoursDiff} hours ${hoursDiff > 0 ? 'ahead of' : hoursDiff < 0 ? 'behind' : 'same as'} ${sourceTimezone}.`,
-        },
-      ],
-    };
-  }
-);
-
-// get_week_year tool
-server.tool(
-  'get_week_year',
-  {
-    date: z.string().describe('The date to get the week and isoWeek of the year. e.g. 2025-03-23').optional(),
-  },
-  async ({ date }: { date?: string }) => {
-    const week = date ? dayjs(date).week() : dayjs().week();
-    const isoWeek = date ? dayjs(date).isoWeek() : dayjs().isoWeek();
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `The week of the year for ${date || 'today'} is ${week}, and the isoWeek of the year is ${isoWeek}.`,
-        },
-      ],
-    };
-  }
-);
-
-// Rate limiting helper function
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const windowStart = Math.floor(now / 60000) * 60000; // Start of current minute
-  
-  const existing = rateLimitMap.get(ip);
-  if (!existing || existing.resetTime < windowStart) {
-    // New window or expired window
-    rateLimitMap.set(ip, { count: 1, resetTime: windowStart + 60000 });
-    return true;
-  }
-  
-  if (existing.count >= RATE_LIMIT) {
-    return false; // Rate limit exceeded
-  }
-  
-  existing.count++;
-  return true;
+// Helper functions for security and protocol validation
+function isValidOrigin(origin: string): boolean {
+	try {
+		const url = new URL(origin);
+		// Allow localhost and secure origins for development and production
+		const allowedHosts = [
+			'localhost',
+			'127.0.0.1',
+			'0.0.0.0',
+			'mcpcentral.io',
+			'mcp.time.mcpcentral.io'
+		];
+		
+		// Allow any localhost port for development
+		if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+			return true;
+		}
+		
+		// Allow our production domains
+		return allowedHosts.some(host => 
+			url.hostname === host || url.hostname.endsWith('.' + host)
+		);
+	} catch {
+		return false;
+	}
 }
 
-// --- Manual Cloudflare Worker Fetch Handler for MCP Protocol ---
+function isSupportedProtocolVersion(version: string): boolean {
+	const supportedVersions = [
+		'2025-06-18',
+		'2025-03-26', // Backwards compatibility
+		'2024-11-05'  // Backwards compatibility
+	];
+	return supportedVersions.includes(version);
+}
+
+// Tool execution functions
+async function executeTool(name: string, args: any) {
+	try {
+		switch (name) {
+			case 'current_time':
+				const utcTime = dayjs.utc();
+				const localTimezone = args.timezone ?? dayjs.tz.guess();
+				const localTime = utcTime.tz(localTimezone);
+				const format = args.format ?? 'YYYY-MM-DD HH:mm:ss';
+
+				return {
+					content: [{
+						type: "text",
+						text: JSON.stringify({
+							utcTime: utcTime.format(format),
+							localTime: localTime.format(format),
+							timezone: localTimezone,
+						}, null, 2)
+					}],
+					isError: false
+				};
+
+			case 'relative_time':
+				return {
+					content: [{
+						type: "text",
+						text: JSON.stringify({
+							relativeTime: dayjs(args.time).fromNow(),
+						}, null, 2)
+					}],
+					isError: false
+				};
+
+			case 'days_in_month':
+				const result = args.date ? dayjs(args.date).daysInMonth() : dayjs().daysInMonth();
+				return {
+					content: [{
+						type: "text",
+						text: JSON.stringify({
+							days: result,
+						}, null, 2)
+					}],
+					isError: false
+				};
+
+			case 'get_timestamp':
+				const timestamp = args.time ? dayjs(args.time).valueOf() : dayjs().valueOf();
+				return {
+					content: [{
+						type: "text",
+						text: JSON.stringify({
+							timestamp: timestamp,
+						}, null, 2)
+					}],
+					isError: false
+				};
+
+			case 'convert_time':
+				const sourceTime = dayjs.tz(args.time, args.sourceTimezone);
+				const targetTime = sourceTime.tz(args.targetTimezone);
+				const formatString = 'YYYY-MM-DD HH:mm:ss';
+				const timeDiff = targetTime.utcOffset() - sourceTime.utcOffset();
+				const hoursDiff = Math.round(timeDiff / 60);
+
+				return {
+					content: [{
+						type: "text",
+						text: JSON.stringify({
+							convertedTime: targetTime.format(formatString),
+							hourDifference: hoursDiff,
+						}, null, 2)
+					}],
+					isError: false
+				};
+
+			case 'get_week_year':
+				const week = args.date ? dayjs(args.date).week() : dayjs().week();
+				const isoWeek = args.date ? dayjs(args.date).isoWeek() : dayjs().isoWeek();
+				return {
+					content: [{
+						type: "text",
+						text: JSON.stringify({
+							week,
+							isoWeek,
+						}, null, 2)
+					}],
+					isError: false
+				};
+
+			default:
+				return {
+					content: [{
+						type: "text",
+						text: `Unknown tool: ${name}`
+					}],
+					isError: true
+				};
+		}
+	} catch (error: any) {
+		return {
+			content: [{
+				type: "text",
+				text: `Tool execution error: ${error.message || error}`
+			}],
+			isError: true
+		};
+	}
+}
+
+// MCP message handler
+async function handleMcpRequest(request: any): Promise<any> {
+	const { method, params, id } = request;
+
+	switch (method) {
+		case 'initialize':
+			return {
+				jsonrpc: '2.0',
+				id,
+				result: {
+					protocolVersion: '2025-06-18',
+					capabilities: {
+						tools: {}
+					},
+					serverInfo: {
+						name: 'mcp-server-http-time',
+						version: '1.0.0'
+					},
+					instructions: "This MCP server provides time-related tools including current time, timezone conversion, relative time calculation, and more."
+				}
+			};
+
+		case 'tools/list':
+			return {
+				jsonrpc: '2.0',
+				id,
+				result: {
+					tools: tools
+				}
+			};
+
+		case 'tools/call':
+			try {
+				const { name, arguments: args } = params;
+				const result = await executeTool(name, args || {});
+				return {
+					jsonrpc: '2.0',
+					id,
+					result
+				};
+			} catch (error: any) {
+				return {
+					jsonrpc: '2.0',
+					id,
+					error: {
+						code: -32603,
+						message: `Tool execution error: ${error.message || error}`
+					}
+				};
+			}
+
+		case 'initialized':
+			// This is a notification, no response needed
+			return null;
+
+		default:
+			return {
+				jsonrpc: '2.0',
+				id,
+				error: {
+					code: -32601,
+					message: `Method not found: ${method}`
+				}
+			};
+	}
+}
+
+// Cloudflare Worker fetch handler
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        status: 204,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      });
-    }
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+		// Handle CORS preflight requests
+		if (request.method === 'OPTIONS') {
+			return new Response(null, {
+				status: 200,
+				headers: {
+					'Access-Control-Allow-Origin': '*',
+					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type, MCP-Protocol-Version, Mcp-Session-Id, Origin',
+				},
+			});
+		}
 
-    if (request.method === 'GET') {
-      return new Response('MCP Server HTTP Time is running.', {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/plain',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
-    }
+		// Security: Validate Origin header to prevent DNS rebinding attacks (MCP requirement 1.2.2.5)
+		const origin = request.headers.get('Origin');
+		if (origin && !isValidOrigin(origin)) {
+			return new Response(JSON.stringify({
+				jsonrpc: '2.0',
+				error: {
+					code: -32603,
+					message: 'Invalid origin',
+				},
+				id: null,
+			}), {
+				status: 403,
+				headers: {
+					'Content-Type': 'application/json',
+				},
+			});
+		}
 
-    if (request.method !== 'POST') {
-      return new Response('Method Not Allowed', {
-        status: 405,
-        headers: { 'Allow': 'POST, OPTIONS, GET' },
-      });
-    }
+		// Validate MCP Protocol Version header if present
+		const protocolVersion = request.headers.get('MCP-Protocol-Version');
+		if (protocolVersion && !isSupportedProtocolVersion(protocolVersion)) {
+			return new Response(JSON.stringify({
+				jsonrpc: '2.0',
+				error: {
+					code: -32603,
+					message: `Unsupported protocol version: ${protocolVersion}`,
+				},
+				id: null,
+			}), {
+				status: 400,
+				headers: {
+					'Content-Type': 'application/json',
+					'Access-Control-Allow-Origin': '*',
+				},
+			});
+		}
 
-    // Get client IP address and check rate limit
-    const clientIP = request.headers.get('CF-Connecting-IP') || 
-                    request.headers.get('X-Forwarded-For') || 
-                    request.headers.get('X-Real-IP') || 
-                    'unknown';
-    
-    if (!checkRateLimit(clientIP)) {
-      return new Response('Too Many Requests - Rate limit exceeded (60 requests per minute)', {
-        status: 429,
-        headers: {
-          'Content-Type': 'text/plain',
-          'Access-Control-Allow-Origin': '*',
-          'Retry-After': '60'
-        }
-      });
-    }
-
-    let requestId: string | number | null = null;
-    try {
-      // Define an interface for the expected request body structure
-      interface JsonRpcRequestBody {
-        method: string;
-        params?: any; // params can be of various types or optional
-        id: string | number | null;
-        jsonrpc: string; // Typically "2.0"
-      }
-
-      const requestBody: JsonRpcRequestBody = await request.json();
-      const { method, params, id } = requestBody;
-      requestId = id;
-
-      switch (method) {
-        case 'initialize': {
-          // Build capabilities.tools from registered tools
-          const registeredTools = (server as any)._registeredTools;
-          const tools: Record<string, any> = {};
-          for (const [name, toolDef] of Object.entries(registeredTools)) {
-            const def = toolDef as any;
-            tools[name] = {
-              description: def.description,
-              inputSchema: zodToJsonSchema(def.inputSchema).definitions?.root ?? zodToJsonSchema(def.inputSchema),
-            };
-          }
-          return jsonRpcResponse(id, {
-            serverInfo: {
-              name: 'mcp-server-http-time',
-              version: '0.2.0',
-            },
-            protocolVersion: '2025-03-26',
-            capabilities: {
-              tools,
-            },
-          });
-        }
-
-        case 'tools/list':
-          // List all registered tools
-          const registeredTools = (server as any)._registeredTools;
-          const toolsList = Object.entries(registeredTools).map(([name, toolDef]: [string, any]) => ({
-            name: name, // Use the key from Object.entries as the tool name
-            description: toolDef.description,
-            inputSchema: zodToJsonSchema(toolDef.inputSchema).definitions?.root ?? zodToJsonSchema(toolDef.inputSchema),
-          }));
-          return jsonRpcResponse(id, { tools: toolsList });
-
-        case 'tools/call':
-          if (!params || typeof params !== 'object' || !params.name) {
-            return jsonRpcResponse(id, null, { code: -32602, message: 'Invalid params: Missing tool name' });
-          }
-          const toolName = params.name;
-          const toolArgs = params.arguments || {};
-          const tool = (server as any)._registeredTools[toolName];
-          if (!tool) {
-            return jsonRpcResponse(id, null, { code: -32601, message: `Unknown tool: ${toolName}` });
-          }
-          try {
-            // Validate arguments using the tool's inputSchema
-            const parseResult = await tool.inputSchema.safeParseAsync(toolArgs);
-            if (!parseResult.success) {
-              return jsonRpcResponse(id, null, { code: -32602, message: `Invalid arguments: ${parseResult.error.message}` });
-            }
-            const result = await tool.callback(parseResult.data, {});
-            return jsonRpcResponse(id, result);
-          } catch (toolError: unknown) {
-            const message = toolError instanceof Error ? toolError.message : String(toolError);
-            return jsonRpcResponse(id, null, { code: -32000, message });
-          }
-
-        default:
-          return jsonRpcResponse(id, null, { code: -32601, message: `Method not found: ${method}` });
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Invalid request format';
-      const errorCode = error instanceof SyntaxError ? -32700 : -32600;
-      return jsonRpcResponse(requestId, null, { code: errorCode, message: errorMessage });
-    }
-  },
+		try {
+			if (request.method === 'POST') {
+				// Handle MCP requests via POST
+				console.log('POST request received');
+				const bodyText = await request.text();
+				console.log('Raw body:', bodyText);
+				
+				let body;
+				try {
+					body = JSON.parse(bodyText);
+					console.log('Parsed body:', JSON.stringify(body));
+				} catch (parseError) {
+					console.error('JSON parse error:', parseError);
+					return new Response(JSON.stringify({
+						jsonrpc: '2.0',
+						error: {
+							code: -32700,
+							message: 'Parse error',
+						},
+						id: null,
+					}), {
+						status: 400,
+						headers: {
+							'Content-Type': 'application/json',
+							'Access-Control-Allow-Origin': '*',
+						},
+					});
+				}
+				
+				const mcpResponse = await handleMcpRequest(body);
+				console.log('MCP response:', JSON.stringify(mcpResponse));
+				
+				// If it's a notification (initialized), return 202 Accepted
+				if (mcpResponse === null) {
+					return new Response(null, {
+						status: 202,
+						headers: {
+							'Access-Control-Allow-Origin': '*',
+							'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+							'Access-Control-Allow-Headers': 'Content-Type, MCP-Protocol-Version, Mcp-Session-Id',
+						},
+					});
+				}
+				
+				return new Response(JSON.stringify(mcpResponse), {
+					status: 200,
+					headers: {
+						'Content-Type': 'application/json',
+						'Access-Control-Allow-Origin': '*',
+						'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+						'Access-Control-Allow-Headers': 'Content-Type, MCP-Protocol-Version, Mcp-Session-Id',
+					},
+				});
+			} else if (request.method === 'GET') {
+				// For now, return 405 Method Not Allowed for GET requests
+				// In a full implementation, this would handle SSE streams
+				return new Response('Method not allowed', { 
+					status: 405,
+					headers: {
+						'Access-Control-Allow-Origin': '*',
+					}
+				});
+			} else {
+				return new Response('Method not allowed', { 
+					status: 405,
+					headers: {
+						'Access-Control-Allow-Origin': '*',
+					}
+				});
+			}
+		} catch (error: any) {
+			console.error('Error handling MCP request:', error);
+			
+			// Return proper JSON-RPC error response
+			return new Response(JSON.stringify({
+				jsonrpc: '2.0',
+				error: {
+					code: -32603,
+					message: 'Internal server error',
+				},
+				id: null,
+			}), {
+				status: 500,
+				headers: {
+					'Content-Type': 'application/json',
+					'Access-Control-Allow-Origin': '*',
+				},
+			});
+		}
+	},
 };
-
-// Helper for JSON-RPC responses
-function jsonRpcResponse(id: string | number | null, result: any, error: any = null) {
-  return new Response(JSON.stringify({
-    jsonrpc: '2.0',
-    id,
-    result: error ? undefined : result,
-    error: error ? { code: error.code || -32000, message: error.message } : undefined,
-  }), {
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
-}
