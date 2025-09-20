@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.13.0",
-    "dayjs": "^1.11.11",
+    "dayjs": "^1.11.18",
     "zod": "^3.24.2",
     "zod-to-json-schema": "^3.24.5"
   },
