@@ -2,7 +2,7 @@
   "mcpServers": {
     "time": {
       "type": "http",
-      "url": "https://mcp.time.mcpcentral.io/mcp"
+      "url": "https://mcp-time.cbrohn.workers.dev"
     }
   }
 }

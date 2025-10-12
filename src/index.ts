@@ -452,8 +452,8 @@ async function handleMcpRequest(request: any): Promise<any> {
 						tools: {}
 					},
 					serverInfo: {
-						name: 'mcp-server-http-time',
-						version: '0.0.4'
+						name: 'mcp-time',
+						version: '0.0.1'
 					},
 					instructions: "This MCP server provides time-related tools including current time, timezone conversion, relative time calculation, and more."
 				}
