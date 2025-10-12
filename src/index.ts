@@ -22,8 +22,8 @@ export interface Env {
 
 // Create MCP server instance
 const server = new McpServer({
-	name: 'mcp-server-http-time',
-	version: '0.0.4',
+	name: 'mcp-time',
+	version: '0.0.1',
 	capabilities: {
 		tools: {},
 	},

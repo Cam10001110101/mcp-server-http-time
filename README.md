@@ -20,7 +20,7 @@ Provides the following MCP tools:
 ## Project Structure
 
 ```
-mcp-server-http-time/
+mcp-time/
 ├── src/
 │   └── index.ts      # Cloudflare Worker entry point & MCP logic
 ├── package.json      # Project dependencies and scripts
@@ -36,10 +36,10 @@ Install the package globally or use with npx:
 
 ```bash
 # Global installation
-npm install -g @cbuk100011/mcp-server-http-time
+npm install -g @cbuk100011/mcp-time
 
 # Or use directly with npx
-npx @cbuk100011/mcp-server-http-time
+npx @cbuk100011/mcp-time
 ```
 
 ### Option 2: Use Remote Server (HTTP Mode)
@@ -60,7 +60,7 @@ Configure your MCP client (e.g., Claude Desktop) to use the stdio transport:
   "mcpServers": {
     "time-server": {
       "command": "npx",
-      "args": ["@cbuk100011/mcp-server-http-time"]
+      "args": ["@cbuk100011/mcp-time"]
     }
   }
 }
@@ -71,7 +71,7 @@ Or with global installation:
 {
   "mcpServers": {
     "time-server": {
-      "command": "/path/to/node/bin/mcp-server-http-time"
+      "command": "/path/to/node/bin/mcp-time"
     }
   }
 }
@@ -254,10 +254,10 @@ Test the stdio transport directly:
 
 ```bash
 # Test initialization
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | npx @cbuk100011/mcp-server-http-time
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | npx @cbuk100011/mcp-time
 
 # Test tool call
-echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"current_time","arguments":{"timezone":"America/New_York"}}}' | npx @cbuk100011/mcp-server-http-time
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"current_time","arguments":{"timezone":"America/New_York"}}}' | npx @cbuk100011/mcp-time
 ```
 
 ### Available Tools to Test
