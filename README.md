@@ -1,14 +1,10 @@
-# MCP Time Server - Streamable HTTP
+# MCP Time Server
 
-⚠️ **This Server is for Demo and Testing Purposes** ⚠️
+A Model Context Protocol (MCP) server providing time-related tools with **dual-mode support**:
+- **Stdio transport** for local MCP clients (via npm)
+- **Streamable HTTP transport** for remote access (via Cloudflare Workers)
 
-This is a **bare bones example server** designed for testing MCP Streamable HTTP protocol functionality. It is **NOT intended for production use** and lacks proper authentication and security measures.
-
----
-
-A Model Context Protocol (MCP) server providing time-related tools, implemented as a Cloudflare Worker.
-
-This server allows LLMs to access various date/time functions.
+This server allows LLMs to access various date/time functions through multiple connection methods.
 
 ## Features
 
@@ -32,7 +28,71 @@ mcp-server-http-time/
 └── wrangler.toml     # Cloudflare Worker configuration
 ```
 
-## Getting Started
+## Installation
+
+### Option 1: Install from npm (Stdio Mode)
+
+Install the package globally or use with npx:
+
+```bash
+# Global installation
+npm install -g @cbuk100011/mcp-server-http-time
+
+# Or use directly with npx
+npx @cbuk100011/mcp-server-http-time
+```
+
+### Option 2: Use Remote Server (HTTP Mode)
+
+Connect directly to the deployed Cloudflare Worker at:
+```
+https://mcp.time.mcpcentral.io
+```
+
+## Usage
+
+### Stdio Transport (Local)
+
+Configure your MCP client (e.g., Claude Desktop) to use the stdio transport:
+
+```json
+{
+  "mcpServers": {
+    "time-server": {
+      "command": "npx",
+      "args": ["@cbuk100011/mcp-server-http-time"]
+    }
+  }
+}
+```
+
+Or with global installation:
+```json
+{
+  "mcpServers": {
+    "time-server": {
+      "command": "/path/to/node/bin/mcp-server-http-time"
+    }
+  }
+}
+```
+
+### Streamable HTTP Transport (Remote)
+
+Configure your MCP client to use the remote HTTP endpoint:
+
+```json
+{
+  "mcpServers": {
+    "time-server": {
+      "url": "https://mcp.time.mcpcentral.io",
+      "transport": "streamable-http"
+    }
+  }
+}
+```
+
+## Development
 
 1.  **Clone the Repository:**
     ```bash
@@ -40,51 +100,58 @@ mcp-server-http-time/
     cd mcp-server-http-time
     ```
 
-## Development
-
-1.  **Install Dependencies:**
+2.  **Install Dependencies:**
     ```bash
     npm install
     ```
 
-2.  **Build:**
+3.  **Build:**
     Compile the TypeScript code:
     ```bash
     npm run build
     ```
     (This compiles `src/index.ts` to `dist/index.js`)
 
-3.  **Local Development (using Wrangler):**
-    Run the worker locally for testing:
+4.  **Test Locally:**
+
+    **Test Stdio Mode:**
+    ```bash
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | node dist/index.js
+    ```
+
+    **Test HTTP Mode (via Wrangler):**
     ```bash
     npx wrangler dev
     ```
-    This will typically start the server on `http://localhost:8787`. You can then point your MCP client configuration to this local endpoint.
+    This will start the server on `http://localhost:8787`. You can then test with curl or point your MCP client to this local endpoint.
 
 ## Deployment
 
-### Configuration
+### Deploy to Cloudflare Workers (HTTP Mode)
 
-Before deploying, you need to configure your Cloudflare Worker:
-
-1. Copy the example configuration file:
+1. **Configure Cloudflare:**
    ```bash
    cp wrangler.toml.example wrangler.toml
    ```
+   Edit `wrangler.toml` to configure your domain (optional).
 
-2. Edit `wrangler.toml` to configure your domain (optional):
-   - Uncomment and modify the `[[routes]]` section if you want to use a custom domain
-   - Replace `your-subdomain.your-domain.com` with your actual domain
-   - Update `zone_name` with your domain
+2. **Login and Deploy:**
+   ```bash
+   wrangler login
+   npx wrangler deploy
+   ```
 
-### Deploy
+### Publish to npm (Stdio Mode)
 
-Deploy the worker to Cloudflare:
+1. **Build the package:**
+   ```bash
+   npm run build
+   ```
 
-```bash
-npx wrangler deploy
-```
-(Ensure you are logged into Cloudflare via `wrangler login` first).
+2. **Publish:**
+   ```bash
+   npm publish --access public
+   ```
 
 ## Connectors for Streamable HTTP Servers
 
@@ -158,37 +225,40 @@ Keep an eye out as more MCP clients adopt support for Streamable HTTP. Here are 
 - [Official MCP Servers Repository](https://github.com/modelcontextprotocol/servers) - Official collection including client information
 - [MCP.so Client Listings](https://mcp.so/?tab=clients) - Community-maintained client directory
 
-## Testing and Validation with MCP Inspector
+## Testing and Validation
 
-The easiest way to test and validate your MCP server is using the official [MCP Inspector](https://github.com/modelcontextprotocol/inspector) tool. This web-based interface allows you to connect to your server and test all available tools interactively.
+### MCP Inspector (HTTP Mode)
 
-### Using MCP Inspector
+The official [MCP Inspector](https://github.com/modelcontextprotocol/inspector) tool provides a web-based interface to test your server.
 
-1. **Start your server** (either locally or deploy to Cloudflare):
+1. **Start your server:**
    ```bash
-   # Local development
+   # Local HTTP server
    npx wrangler dev
-   
-   # Or use your deployed Cloudflare Worker URL
-   # https://your.worker.url.workers.dev
+
+   # Or use deployed URL: https://mcp.time.mcpcentral.io
    ```
 
-2. **Open the MCP Inspector** in your browser:
-   - Go to: https://github.com/modelcontextprotocol/inspector
-   - Or run locally: `npx @modelcontextprotocol/inspector`
+2. **Open MCP Inspector:**
+   - Visit: https://github.com/modelcontextprotocol/inspector
+   - Or run: `npx @modelcontextprotocol/inspector`
 
-3. **Configure the connection**:
-   - Select **"Streamable HTTP"** as the transport type
-   - Enter your server URL:
-     - Local: `http://localhost:8787`
-     - Deployed: `https://your.worker.url.workers.dev`
-   - Click **"Connect"**
+3. **Configure connection:**
+   - Transport: **Streamable HTTP**
+   - URL: `http://localhost:8787` or `https://mcp.time.mcpcentral.io`
+   - Click **Connect**
 
-4. **Test the tools**:
-   - Navigate to the **"Tools"** tab
-   - Click **"List Tools"** to see all available functions
-   - Select any tool to view its schema and parameters
-   - Test tools by providing parameters and clicking **"Run"**
+### Command Line Testing (Stdio Mode)
+
+Test the stdio transport directly:
+
+```bash
+# Test initialization
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | npx @cbuk100011/mcp-server-http-time
+
+# Test tool call
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"current_time","arguments":{"timezone":"America/New_York"}}}' | npx @cbuk100011/mcp-server-http-time
+```
 
 ### Available Tools to Test
 

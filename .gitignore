@@ -154,6 +154,6 @@ docs/.vuepress/dist/
 
 # Protocol specifications
 specification/
-
+mcp-llms-full.txt
 # Monitoring and analytics
 .lighthouseci/

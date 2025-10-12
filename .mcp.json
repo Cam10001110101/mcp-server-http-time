@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "time": {
+      "type": "http",
+      "url": "https://mcp.time.mcpcentral.io/mcp"
+    }
+  }
+}

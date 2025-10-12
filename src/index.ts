@@ -1,3 +1,7 @@
+#!/usr/bin/env node
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime.js';
 import utc from 'dayjs/plugin/utc.js';
@@ -16,7 +20,174 @@ export interface Env {
 	// Environment variables can be configured in wrangler.toml or via the Cloudflare dashboard
 }
 
-// Tool definitions
+// Create MCP server instance
+const server = new McpServer({
+	name: 'mcp-server-http-time',
+	version: '0.0.4',
+	capabilities: {
+		tools: {},
+	},
+});
+
+// Register tools
+server.tool(
+	'current_time',
+	'Get current time in UTC and specified timezone',
+	{
+		format: z.string().optional().describe('The format for the returned time string (default: YYYY-MM-DD HH:mm:ss)'),
+		timezone: z.string().optional().describe('The IANA timezone name (e.g., "America/New_York"). Defaults to server\'s guessed timezone'),
+	},
+	async ({ format, timezone: tz }) => {
+		const utcTime = dayjs.utc();
+		const localTimezone = tz ?? dayjs.tz.guess();
+		const localTime = utcTime.tz(localTimezone);
+		const formatString = format ?? 'YYYY-MM-DD HH:mm:ss';
+
+		return {
+			content: [{
+				type: 'text',
+				text: JSON.stringify({
+					utcTime: utcTime.format(formatString),
+					localTime: localTime.format(formatString),
+					timezone: localTimezone,
+				}, null, 2)
+			}],
+		};
+	}
+);
+
+server.tool(
+	'relative_time',
+	'Calculate relative time from now to a given time string',
+	{
+		time: z.string().describe('The time to compare (format: YYYY-MM-DD HH:mm:ss)'),
+	},
+	async ({ time }) => {
+		return {
+			content: [{
+				type: 'text',
+				text: JSON.stringify({
+					relativeTime: dayjs(time).fromNow(),
+				}, null, 2)
+			}],
+		};
+	}
+);
+
+server.tool(
+	'days_in_month',
+	'Get the number of days in a month',
+	{
+		date: z.string().optional().describe('The date to check (format: YYYY-MM-DD). Defaults to current date'),
+	},
+	async ({ date }) => {
+		const result = date ? dayjs(date).daysInMonth() : dayjs().daysInMonth();
+		return {
+			content: [{
+				type: 'text',
+				text: JSON.stringify({
+					days: result,
+				}, null, 2)
+			}],
+		};
+	}
+);
+
+server.tool(
+	'get_timestamp',
+	'Convert a date-time string to Unix timestamp in milliseconds',
+	{
+		time: z.string().optional().describe('The time to convert (format: YYYY-MM-DD HH:mm:ss). Defaults to current time'),
+	},
+	async ({ time }) => {
+		const timestamp = time ? dayjs(time).valueOf() : dayjs().valueOf();
+		return {
+			content: [{
+				type: 'text',
+				text: JSON.stringify({
+					timestamp: timestamp,
+				}, null, 2)
+			}],
+		};
+	}
+);
+
+server.tool(
+	'convert_time',
+	'Convert time between different IANA timezones',
+	{
+		time: z.string().describe('The time to convert (e.g., "2025-03-23 12:30:00")'),
+		sourceTimezone: z.string().describe('Source IANA timezone name (e.g., "Asia/Shanghai")'),
+		targetTimezone: z.string().describe('Target IANA timezone name (e.g., "Europe/London")'),
+	},
+	async ({ time, sourceTimezone, targetTimezone }) => {
+		const sourceTime = dayjs.tz(time, sourceTimezone);
+		const targetTime = sourceTime.tz(targetTimezone);
+		const formatString = 'YYYY-MM-DD HH:mm:ss';
+		const timeDiff = targetTime.utcOffset() - sourceTime.utcOffset();
+		const hoursDiff = Math.round(timeDiff / 60);
+
+		return {
+			content: [{
+				type: 'text',
+				text: JSON.stringify({
+					convertedTime: targetTime.format(formatString),
+					hourDifference: hoursDiff,
+				}, null, 2)
+			}],
+		};
+	}
+);
+
+server.tool(
+	'get_week_year',
+	'Get week number and ISO week number for a date',
+	{
+		date: z.string().optional().describe('The date to check (e.g., "2025-03-23"). Defaults to current date'),
+	},
+	async ({ date }) => {
+		const week = date ? dayjs(date).week() : dayjs().week();
+		const isoWeek = date ? dayjs(date).isoWeek() : dayjs().isoWeek();
+		return {
+			content: [{
+				type: 'text',
+				text: JSON.stringify({
+					week,
+					isoWeek,
+				}, null, 2)
+			}],
+		};
+	}
+);
+
+// Stdio mode - for local npm usage
+async function runStdio() {
+	const transport = new StdioServerTransport();
+	await server.connect(transport);
+	console.error('MCP Time Server running on stdio');
+
+	// Keep the process running until the transport closes
+	await new Promise<void>((resolve) => {
+		transport.onclose = () => {
+			console.error('Transport closed');
+			resolve();
+		};
+
+		// Also handle process signals
+		process.on('SIGINT', () => {
+			console.error('Received SIGINT, shutting down');
+			resolve();
+		});
+
+		process.on('SIGTERM', () => {
+			console.error('Received SIGTERM, shutting down');
+			resolve();
+		});
+	});
+}
+
+// HTTP mode - for Cloudflare Workers
+// Tool definitions for HTTP mode
 const tools = [
 	{
 		name: 'current_time',
@@ -123,7 +294,6 @@ const tools = [
 function isValidOrigin(origin: string): boolean {
 	try {
 		const url = new URL(origin);
-		// Allow localhost and secure origins for development and production
 		const allowedHosts = [
 			'localhost',
 			'127.0.0.1',
@@ -131,14 +301,12 @@ function isValidOrigin(origin: string): boolean {
 			'mcpcentral.io',
 			'mcp.time.mcpcentral.io'
 		];
-		
-		// Allow any localhost port for development
+
 		if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
 			return true;
 		}
-		
-		// Allow our production domains
-		return allowedHosts.some(host => 
+
+		return allowedHosts.some(host =>
 			url.hostname === host || url.hostname.endsWith('.' + host)
 		);
 	} catch {
@@ -149,13 +317,13 @@ function isValidOrigin(origin: string): boolean {
 function isSupportedProtocolVersion(version: string): boolean {
 	const supportedVersions = [
 		'2025-06-18',
-		'2025-03-26', // Backwards compatibility
-		'2024-11-05'  // Backwards compatibility
+		'2025-03-26',
+		'2024-11-05'
 	];
 	return supportedVersions.includes(version);
 }
 
-// Tool execution functions
+// Tool execution functions for HTTP mode
 async function executeTool(name: string, args: any) {
 	try {
 		switch (name) {
@@ -264,17 +432,16 @@ async function executeTool(name: string, args: any) {
 	}
 }
 
-// MCP message handler
+// MCP message handler for HTTP mode
 async function handleMcpRequest(request: any): Promise<any> {
 	const { method, params, id } = request;
 
 	switch (method) {
 		case 'initialize':
-			// Use the client's requested protocol version if supported, otherwise default to latest
 			const clientProtocolVersion = params?.protocolVersion || '2025-06-18';
-			const responseProtocolVersion = isSupportedProtocolVersion(clientProtocolVersion) 
-				? clientProtocolVersion 
-				: '2024-11-05'; // Fall back to widely supported version
+			const responseProtocolVersion = isSupportedProtocolVersion(clientProtocolVersion)
+				? clientProtocolVersion
+				: '2024-11-05';
 
 			return {
 				jsonrpc: '2.0',
@@ -286,7 +453,7 @@ async function handleMcpRequest(request: any): Promise<any> {
 					},
 					serverInfo: {
 						name: 'mcp-server-http-time',
-						version: '1.0.0'
+						version: '0.0.4'
 					},
 					instructions: "This MCP server provides time-related tools including current time, timezone conversion, relative time calculation, and more."
 				}
@@ -322,7 +489,6 @@ async function handleMcpRequest(request: any): Promise<any> {
 			}
 
 		case 'initialized':
-			// This is a notification, no response needed
 			return null;
 
 		default:
@@ -340,7 +506,6 @@ async function handleMcpRequest(request: any): Promise<any> {
 // Cloudflare Worker fetch handler
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		// Handle CORS preflight requests
 		if (request.method === 'OPTIONS') {
 			return new Response(null, {
 				status: 200,
@@ -352,7 +517,6 @@ export default {
 			});
 		}
 
-		// Security: Validate Origin header to prevent DNS rebinding attacks (MCP requirement 1.2.2.5)
 		const origin = request.headers.get('Origin');
 		if (origin && !isValidOrigin(origin)) {
 			return new Response(JSON.stringify({
@@ -370,7 +534,6 @@ export default {
 			});
 		}
 
-		// Validate MCP Protocol Version header if present
 		const protocolVersion = request.headers.get('MCP-Protocol-Version');
 		if (protocolVersion && !isSupportedProtocolVersion(protocolVersion)) {
 			return new Response(JSON.stringify({
@@ -391,17 +554,11 @@ export default {
 
 		try {
 			if (request.method === 'POST') {
-				// Handle MCP requests via POST
-				console.log('POST request received');
 				const bodyText = await request.text();
-				console.log('Raw body:', bodyText);
-				
 				let body;
 				try {
 					body = JSON.parse(bodyText);
-					console.log('Parsed body:', JSON.stringify(body));
 				} catch (parseError) {
-					console.error('JSON parse error:', parseError);
 					return new Response(JSON.stringify({
 						jsonrpc: '2.0',
 						error: {
@@ -417,11 +574,9 @@ export default {
 						},
 					});
 				}
-				
+
 				const mcpResponse = await handleMcpRequest(body);
-				console.log('MCP response:', JSON.stringify(mcpResponse));
-				
-				// If it's a notification (initialized), return 202 Accepted
+
 				if (mcpResponse === null) {
 					return new Response(null, {
 						status: 202,
@@ -432,7 +587,7 @@ export default {
 						},
 					});
 				}
-				
+
 				return new Response(JSON.stringify(mcpResponse), {
 					status: 200,
 					headers: {
@@ -442,17 +597,8 @@ export default {
 						'Access-Control-Allow-Headers': 'Content-Type, MCP-Protocol-Version, Mcp-Session-Id',
 					},
 				});
-			} else if (request.method === 'GET') {
-				// For now, return 405 Method Not Allowed for GET requests
-				// In a full implementation, this would handle SSE streams
-				return new Response('Method not allowed', { 
-					status: 405,
-					headers: {
-						'Access-Control-Allow-Origin': '*',
-					}
-				});
 			} else {
-				return new Response('Method not allowed', { 
+				return new Response('Method not allowed', {
 					status: 405,
 					headers: {
 						'Access-Control-Allow-Origin': '*',
@@ -460,9 +606,6 @@ export default {
 				});
 			}
 		} catch (error: any) {
-			console.error('Error handling MCP request:', error);
-			
-			// Return proper JSON-RPC error response
 			return new Response(JSON.stringify({
 				jsonrpc: '2.0',
 				error: {
@@ -480,3 +623,12 @@ export default {
 		}
 	},
 };
+
+// Run stdio mode if not in Cloudflare Workers environment
+// In Cloudflare Workers, there's no 'process' global or it's running in a worker context
+if (typeof process !== 'undefined' && process.argv) {
+	runStdio().catch((error) => {
+		console.error('Fatal error in stdio mode:', error);
+		process.exit(1);
+	});
+}
