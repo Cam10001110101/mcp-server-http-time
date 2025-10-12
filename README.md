@@ -44,7 +44,9 @@ npx @cbuk100011/mcp-time
 
 ### Option 2: Use Remote Server (HTTP Mode)
 
-Connect directly to the deployed Cloudflare Worker at:
+Connect directly to the deployed Cloudflare Worker:  
+  
+Example:
 ```
 https://mcp.time.mcpcentral.io
 ```
