@@ -1,6 +1,6 @@
 {
   "name": "@cbuk100011/mcp-server-http-time",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Time MCP server via HTTP",
   "type": "module",
   "bin": {
