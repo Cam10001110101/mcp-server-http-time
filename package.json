@@ -36,7 +36,7 @@
   },
   "homepage": "https://github.com/Cam10001110101/mcp-server-http-time#readme",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.20.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "dayjs": "^1.11.11",
     "zod": "^3.24.2",
     "zod-to-json-schema": "^3.24.5"
